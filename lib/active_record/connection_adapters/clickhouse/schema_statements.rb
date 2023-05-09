@@ -70,8 +70,16 @@ module ActiveRecord
           log(sql, "#{adapter_name} #{name}") do
             formatted_sql = apply_format(sql, format)
             request_params = @config || {}
-            res = @connection.post("/?#{request_params.merge(settings).to_param}", formatted_sql, 'User-Agent' => "Clickhouse ActiveRecord #{ClickhouseActiverecord::VERSION}")
-
+            begin
+              attempts ||= 1
+              res = @connection.post("/?#{request_params.merge(settings).to_param}", formatted_sql, 'User-Agent' => "Clickhouse ActiveRecord #{ClickhouseActiverecord::VERSION}")
+            rescue EOFError # We have been experiencing maybe timeouts or connection interuptions. Source of issue is unknown
+              if (attempts += 1) < 4
+                sleep 0.5
+                
+                retry
+              end
+            end
             process_response(res)
           end
         end
