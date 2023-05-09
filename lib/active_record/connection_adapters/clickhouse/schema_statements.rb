@@ -60,7 +60,16 @@ module ActiveRecord
 
         def do_system_execute(sql, name = nil)
           log_with_debug(sql, "#{adapter_name} #{name}") do
-            res = @connection.post("/?#{@config.to_param}", "#{sql} FORMAT JSONCompact", 'User-Agent' => "Clickhouse ActiveRecord #{ClickhouseActiverecord::VERSION}")
+            begin
+              attempts ||= 1
+              res = @connection.post("/?#{@config.to_param}", "#{sql} FORMAT JSONCompact", 'User-Agent' => "Clickhouse ActiveRecord #{ClickhouseActiverecord::VERSION}")
+            rescue EOFError # We have been experiencing maybe timeouts or connection interuptions. Source of issue is unknown
+              if (attempts += 1) < 4
+                sleep 0.5
+                
+                retry
+              end
+            end
 
             process_response(res)
           end
